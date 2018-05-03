@@ -1,0 +1,3 @@
+[submodule "ligra"]
+	path = ligra
+	url = https://github.com/jshun/ligra.git

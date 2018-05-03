@@ -59,12 +59,14 @@ void Compute(graph<vertex>& GA, commandLine P){
     long n = GA.n;
     long m = GA.m;
     double beta = P.getOptionDoubleValue("-b", .005);
-    setWorkers(1);
+    int procs = P.getOptionIntValue("-p", 4);
+
+    setWorkers(procs);
     double *E = newA(double, n);
     double *S = newA(double, n);
     double *C = newA(double, 2 * n);
     double MAX_VALUE = numeric_limits<double>::max                            (); 
-    // cout << getWorkers() << endl;
+    cout << "Num Workers: " << getWorkers() << endl;
 
     {parallel_for(long i = 0; i < n; i++) E[i] = exp(beta);}
     double maxE = sequence::reduce(E, n, maxF<double>());

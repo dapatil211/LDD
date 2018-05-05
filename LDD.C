@@ -119,8 +119,8 @@ void Compute(graph<vertex>& GA, commandLine P){
     double *E = newA(double, n);
     double *S = newA(double, n);
     double *C = newA(double, 2 * n);
-    double MAX_VALUE = numeric_limits<double>::max(); 
-    cout << "N: " << n << " M: " << m << " Num Workers: " << getWorkers() << endl;
+    double MAX_VALUE = numeric_limits<double>::max();
+    cout << endl << "N: " << n << " M: " << m << " Num Workers: " << getWorkers() << endl;
 
     // ****** START TIMER ******
     t.start();

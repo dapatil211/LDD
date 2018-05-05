@@ -210,7 +210,7 @@ void Compute(graph<vertex>& GA, commandLine P){
     }
     t.stop();
 
-    cout << "SEQUENTIAL LDD" << endl;
+    cout << endl << "SEQUENTIAL LDD" << endl;
     cout << "N: " << n << " M: " << m  << endl;
 
     bool *uniq = newA(bool, n);
@@ -232,7 +232,7 @@ void Compute(graph<vertex>& GA, commandLine P){
     vertexSubset allVerts(n, verts);
     edgeMap(GA, allVerts, CUT_EDGES_F(balls, cut_edges));
 
-    cout << "Beta: " << beta << " # Clusters: " << num_clusters << " # cut-edges: " << cut_edges << endl << endl; 
+    cout << "Beta: " << beta << " # Clusters: " << num_clusters << " # cut-edges: " << cut_edges << endl; 
     t.reportTotal("Sequential Computation Time: "); 
 }
 

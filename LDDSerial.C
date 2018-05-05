@@ -61,7 +61,7 @@ struct CUT_EDGES_F {
     CUT_EDGES_F(uintE* _IDs, long& _cut_edges) : 
         IDs(_IDs), cut_edges(_cut_edges) {}
 
-    inline bool update(uintE s, uintE d){ //Update function writes min ID
+    inline bool update(uintE s, uintE d){ 
         if(IDs[s] != IDs[d] && s < d){
             cut_edges ++;
         }
@@ -100,7 +100,6 @@ void contract(long n, uintE* IDs){
     {parallel_for(long i=0;i<n;i++) frontier[i] = 1;} 
     vertexSubset Frontier(n,n,frontier); //initial frontier contains all vertices
     while(!Frontier.isEmpty()){ //iterate until IDS converge
-        // cout << Frontier.size() << endl;
         vertexSubset output = vertexFilter(Frontier,CC_Vertex_F(IDs));
         Frontier.del();
         Frontier = output;
@@ -109,81 +108,131 @@ void contract(long n, uintE* IDs){
 }
 
 template <class vertex>
+struct VOLUME_F{
+    long &degree_sum;
+    graph<vertex>& GA;
+    VOLUME_F(long &_sum, graph<vertex>& _GA):
+        degree_sum(_sum), GA(_GA) {}
+    
+    void operator () (uintE i){
+        degree_sum += GA.V[i].getOutDegree();
+    }
+};
+
+struct BOUNDARY_F{
+    uintE* balls;
+    long &outGoing;
+    BOUNDARY_F(long& _outGoing, uintE* _balls):
+        balls(_balls), outGoing(_outGoing){}
+    
+    inline bool update(uintE s, uintE d){ 
+        outGoing++;
+        return false;
+    }
+
+    inline bool updateAtomic (uintE s, uintE d) { //atomic Update
+        return update(s, d);
+    }
+
+    inline bool cond (uintE d) { return balls[d] == -1; } //does nothing
+};
+
+struct BFS_F{
+    uintE *balls;
+    long ballCenter;
+    long &numInBall;
+    BFS_F(uintE* _balls, long _ballCenter, long& _numInBall):
+        balls(_balls), ballCenter(_ballCenter), numInBall(_numInBall){}
+    
+    inline bool update(uintE s, uintE d){ 
+        balls[d] = ballCenter;
+        numInBall++;
+        return true;
+    }
+
+    inline bool updateAtomic (uintE s, uintE d) { //atomic Update
+        return update(s, d);
+    }
+
+    inline bool cond (uintE d) { return balls[d] == -1; } //does nothing
+};
+
+template <class vertex>
+long growBall(graph<vertex>& GA, uintE* balls, uintE ballCenter, double beta){
+    vertexSubset F(GA.n, ballCenter);
+    balls[ballCenter] = ballCenter;
+    long degrees = 0;
+    long outGoing = 0;
+    long numInBall = 1;
+    vertexMap(F, VOLUME_F<vertex>(degrees, GA));
+    edgeMap(GA, F, BOUNDARY_F(outGoing, balls));
+    // cout << "CENTER: " << ballCenter << " OUTGOING: " << outGoing << " DEGREES: "<< degrees << endl;
+    while(outGoing > beta * degrees){
+        vertexSubset output = edgeMap(GA, F, BFS_F(balls, ballCenter, numInBall));
+        F.del();
+        F = output;
+        long frontierDegrees = 0;
+        outGoing = 0;
+        vertexMap(F, VOLUME_F<vertex>(frontierDegrees, GA));
+        edgeMap(GA, F, BOUNDARY_F(outGoing, balls));
+        degrees += frontierDegrees;
+    }
+    F.del();
+    return numInBall;
+}
+
+template <class vertex>
 void Compute(graph<vertex>& GA, commandLine P){
     long n = GA.n;
     long m = GA.m;
     double beta = P.getOptionDoubleValue("-e", .005);
-    int procs = P.getOptionIntValue("-p", 4);
-    timer t;
-    setWorkers(procs);
-    double *E = newA(double, n);
-    double *S = newA(double, n);
-    double *C = newA(double, 2 * n);
-    double MAX_VALUE = numeric_limits<double>::max(); 
-    cout << "N: " << n << " M: " << m << " Num Workers: " << getWorkers() << endl;
 
-    // ****** START TIMER ******
+    setWorkers(1);
+    timer t;
     t.start();
-    {parallel_for(long i = 0; i < n; i++) E[i] = exp(beta);}
-    double maxE = sequence::reduce(E, n, maxF<double>());
-    {parallel_for(long i = 0; i < n; i++) {
-        S[i] = maxE - E[i];
-    }}
-    {parallel_for(long i = 0; i < 2 * n; i++) C[i] = MAX_VALUE;}
-    
-    long num_processed = 0;
-    long round = 1;
-    vertexSubset F(n);
-    while(num_processed < n){
-        // cout << "Round "  << round << endl << "Processed: " << num_processed << endl;
-        F.toDense();
-        
-        bool *active = newA(bool, n);
-        {parallel_for(long i = 0; i < n; i++) active[i] = F.isIn(i) || (S[i] < round && C[2 * i] == MAX_VALUE);}
-        vertexSubset F_new(n, active);
-        num_processed += F_new.size();
-        F.del();
-        edgeMap(GA, F_new, LDD_UPDATE_F(S, C, MAX_VALUE));
-        vertexSubset temp = edgeMap(GA, F_new, LDD_CHECK_F(S, C));
-        F_new.del();
-        F = temp;
-        round ++;
+    uintE *balls = newA(uintE, n);
+    for(int i = 0; i < n; i ++){
+        balls[i] = -1;
     }
 
-    // ****** END TIMER ******
+    long numActive = n;
+    while(numActive != 0){
+        uintE ballCenterIdx = rand() % numActive;
+        uintE ballCenter = 0;
+        while(ballCenterIdx != -1){
+            if(balls[ballCenter] == -1){
+                ballCenterIdx -= 1;
+            }
+            ballCenter ++;
+        }
+        ballCenter = ballCenter - 1;
+        numActive -= growBall(GA, balls, ballCenter, beta);
+    }
     t.stop();
 
-    // cout << "ROUND: " << round << endl;
-    uintE *IDs = newA(uintE, n);
-    {parallel_for(long i = 0; i < n; i++){
-        if(C[2 * i + 1] == MAX_VALUE){
-            IDs[i] = i;
-        } else{
-            IDs[i] = (uintE) C[2 * i + 1];
-        }
-    }}
-    contract(n, IDs);
-    // for(int i =0; i < n; i++){
-    //     cout << "vertex: " << i << " cluster: " << IDs[i] << " START: " << S[i]<< endl;
-    // }
+    cout << "SEQUENTIAL LDD" << endl;
+    cout << "N: " << n << " M: " << m  << endl;
+
     bool *uniq = newA(bool, n);
     bool *verts = newA(bool, n);
-    {parallel_for(long i = 0; i < n; i++){
+    for(long i = 0; i < n; i++){
         uniq[i] = 0;
-    }}
-    {parallel_for(long i = 0; i < n; i++){
-        uniq[IDs[i]] = 1;
+    }
+
+    for(long i = 0; i < n; i++){
+        uniq[balls[i]] = 1;
         verts[i] = 1;
-    }}
+    }
+
     vertexSubset clusters(n, uniq);
     long num_clusters = clusters.size();
     clusters.del();
 
     long cut_edges = 0;
     vertexSubset allVerts(n, verts);
-    edgeMap(GA, allVerts, CUT_EDGES_F(IDs, cut_edges));
+    edgeMap(GA, allVerts, CUT_EDGES_F(balls, cut_edges));
 
-    cout << "Beta: " << beta << " # Clusters: " << num_clusters << " # cut-edges: " << cut_edges << endl;
-    t.reportTotal("Parallel Computation Time: "); 
+    cout << "Beta: " << beta << " # Clusters: " << num_clusters << " # cut-edges: " << cut_edges << endl << endl; 
+    t.reportTotal("Sequential Computation Time: "); 
 }
 

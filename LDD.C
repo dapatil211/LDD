@@ -116,14 +116,14 @@ void Compute(graph<vertex>& GA, commandLine P){
     int procs = P.getOptionIntValue("-p", 4);
     timer t;
     setWorkers(procs);
-    double *E = newA(double, n);
-    double *S = newA(double, n);
-    double *C = newA(double, 2 * n);
-    double MAX_VALUE = numeric_limits<double>::max();
     cout << endl << "N: " << n << " M: " << m << " Num Workers: " << getWorkers() << endl;
 
     // ****** START TIMER ******
     t.start();
+    double *E = newA(double, n);
+    double *S = newA(double, n);
+    double *C = newA(double, 2 * n);
+    double MAX_VALUE = numeric_limits<double>::max();
     {parallel_for(long i = 0; i < n; i++) E[i] = exp(beta);}
     double maxE = sequence::reduce(E, n, maxF<double>());
     {parallel_for(long i = 0; i < n; i++) {
@@ -182,6 +182,12 @@ void Compute(graph<vertex>& GA, commandLine P){
     long cut_edges = 0;
     vertexSubset allVerts(n, verts);
     edgeMap(GA, allVerts, CUT_EDGES_F(IDs, cut_edges));
+    allVerts.del();
+
+    free(E);
+    free(S);
+    free(C);
+    free(IDs);
 
     cout << "Beta: " << beta << " # Clusters: " << num_clusters << " # cut-edges: " << cut_edges << endl;
     t.reportTotal("Parallel Computation Time: "); 

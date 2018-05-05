@@ -6,7 +6,9 @@
 #include "utils.h"
 #include <iostream>
 #include <omp.h>
-
+#include <vector>
+#include<algorithm>
+#include<unordered_set>
 using namespace std;
 double exp(double lambda){
     double u = (double) rand() / (double) RAND_MAX;
@@ -119,6 +121,15 @@ struct VOLUME_F{
     }
 };
 
+struct SET_F{
+    unordered_set<uintE> &remove;
+    SET_F(unordered_set<uintE> &_remove):
+        remove(_remove) {}
+    
+    void operator () (uintE i){
+        !remove.count(i);
+    }
+};
 struct BOUNDARY_F{
     uintE* balls;
     long &outGoing;
@@ -139,14 +150,16 @@ struct BOUNDARY_F{
 
 struct BFS_F{
     uintE *balls;
-    long ballCenter;
-    long &numInBall;
-    BFS_F(uintE* _balls, long _ballCenter, long& _numInBall):
-        balls(_balls), ballCenter(_ballCenter), numInBall(_numInBall){}
+    uintE ballCenter;
+    // long &numInBall;
+    unordered_set<uintE> &verticesInBall;
+    BFS_F(uintE* _balls, uintE _ballCenter, unordered_set<uintE>& _verticesInBall):
+        balls(_balls), ballCenter(_ballCenter), verticesInBall(_verticesInBall){}
     
     inline bool update(uintE s, uintE d){ 
         balls[d] = ballCenter;
-        numInBall++;
+        // numInBall++;
+        verticesInBall.erase(d);
         return true;
     }
 
@@ -156,29 +169,38 @@ struct BFS_F{
 
     inline bool cond (uintE d) { return balls[d] == -1; } //does nothing
 };
-
+timer t1, t2, t3, t4;
 template <class vertex>
-long growBall(graph<vertex>& GA, uintE* balls, uintE ballCenter, double beta){
+void growBall(graph<vertex>& GA, uintE* balls, uintE ballCenter, double beta, unordered_set<uintE>& all){
     vertexSubset F(GA.n, ballCenter);
     balls[ballCenter] = ballCenter;
+    // set<uintE>verticesInBall(1, ballCenter);
+    all.erase(ballCenter);
     long degrees = 0;
     long outGoing = 0;
-    long numInBall = 1;
+    // long numInBall = 1;
     vertexMap(F, VOLUME_F<vertex>(degrees, GA));
     edgeMap(GA, F, BOUNDARY_F(outGoing, balls));
     // cout << "CENTER: " << ballCenter << " OUTGOING: " << outGoing << " DEGREES: "<< degrees << endl;
     while(outGoing > beta * degrees){
-        vertexSubset output = edgeMap(GA, F, BFS_F(balls, ballCenter, numInBall));
+        // t1.start();
+        vertexSubset output = edgeMap(GA, F, BFS_F(balls, ballCenter, all));
+        // t1.stop();
         F.del();
         F = output;
         long frontierDegrees = 0;
         outGoing = 0;
+        // t2.start();
         vertexMap(F, VOLUME_F<vertex>(frontierDegrees, GA));
+        // t2.stop();
+        // t3.start();
         edgeMap(GA, F, BOUNDARY_F(outGoing, balls));
+        // t3.stop();
         degrees += frontierDegrees;
+        // cout << "CENTER: " << ballCenter << " OUTGOING: " << outGoing << " DEGREES: "<< degrees << endl;
     }
     F.del();
-    return numInBall;
+    // return verticesInBall;
 }
 
 template <class vertex>
@@ -188,6 +210,8 @@ void Compute(graph<vertex>& GA, commandLine P){
     double beta = P.getOptionDoubleValue("-e", .005);
 
     setWorkers(1);
+    cout << endl << "SEQUENTIAL LDD" << endl;
+    cout << "N: " << n << " M: " << m  << endl;
     timer t;
     t.start();
     uintE *balls = newA(uintE, n);
@@ -195,44 +219,83 @@ void Compute(graph<vertex>& GA, commandLine P){
         balls[i] = -1;
     }
 
-    long numActive = n;
-    while(numActive != 0){
-        uintE ballCenterIdx = rand() % numActive;
-        uintE ballCenter = 0;
-        while(ballCenterIdx != -1){
-            if(balls[ballCenter] == -1){
-                ballCenterIdx -= 1;
-            }
-            ballCenter ++;
-        }
-        ballCenter = ballCenter - 1;
-        numActive -= growBall(GA, balls, ballCenter, beta);
+    // long numActive = n;
+    // uintE *active = newA(uintE, n);
+
+    unordered_set<uintE> all;
+    for(long i = 0; i < n; i++){
+        // active[i] = 1;
+        all.insert(i);
+    }
+
+    // vertexSubset F(n, active);
+    while(!all.empty()){
+        // cout << all.size() << endl;
+        // int ballCenterIdx = rand() % numActive;
+        // uintE ballCenter = 0;
+        // while(ballCenterIdx != -1){
+        //     if(balls[ballCenter] == -1){
+        //         ballCenterIdx -= 1;
+        //     }
+        //     ballCenter ++;
+        // }
+        // F.toSparse();
+        // uintE ballCenter = F.vtx[ballCenterIdx];
+        // cout << ballCenterIdx << " " << numActive << " " << ballCenter << endl;
+        // t4.start();
+        auto it = all.begin();
+        // t4.stop();
+        // cout << *it << endl;
+        growBall(GA, balls, *it, beta, all);
+        // cout << verticesInBall.size()<<endl;
+        // for(int i = 0; i < n; i ++){
+        //     cout << active[i] << " ";
+        // }
+        // sort(verticesInBall.rbegin(), verticesInBall.rend());
+        // cout << verticesInBall.size() << endl << endl;
+        // long ind = numActive - 1;
+        // for(long i = 0; i < verticesInBall.size(); i++){
+        //     while(active[ind] != verticesInBall[i]){
+        //         ind --;
+        //     }
+        //     active[ind] = active[numActive - 1];
+        //     numActive --;
+        //     // cout << verticesInBall[i] << endl;
+        // }
+        // sort(active, active + numActive);
+        // for(int i = 0; i < n; i ++){
+        //     cout << active[i] << " ";
+        // }
+        // cout << endl;
     }
     t.stop();
-
-    cout << endl << "SEQUENTIAL LDD" << endl;
-    cout << "N: " << n << " M: " << m  << endl;
+    // cout << t1.total() << endl;
+    // cout << t2.total() << endl;
+    // cout << t3.total() << endl;
+    // cout << t4.total() << endl;
 
     bool *uniq = newA(bool, n);
     bool *verts = newA(bool, n);
     for(long i = 0; i < n; i++){
         uniq[i] = 0;
+        // cout << balls[i] << endl;
     }
 
     for(long i = 0; i < n; i++){
         uniq[balls[i]] = 1;
         verts[i] = 1;
     }
-
     vertexSubset clusters(n, uniq);
     long num_clusters = clusters.size();
     clusters.del();
-
+    
     long cut_edges = 0;
     vertexSubset allVerts(n, verts);
     edgeMap(GA, allVerts, CUT_EDGES_F(balls, cut_edges));
+    allVerts.del();
 
     cout << "Beta: " << beta << " # Clusters: " << num_clusters << " # cut-edges: " << cut_edges << endl; 
     t.reportTotal("Sequential Computation Time: "); 
+    free(balls);
 }
 

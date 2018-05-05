@@ -3,7 +3,7 @@ import pprint
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
 pp = pprint.PrettyPrinter(indent=2)
-file_prefix="outputs/ex"
+file_prefix="outputs/live"
 betas=[".002", ".005", ".01", ".02", ".05", ".1", ".2"]
 
 #betas=[".002", ".005"]
@@ -64,6 +64,7 @@ def extract_values():
                 values['par'][num_thread]['clusters'].append(clusters)
                 values['par'][num_thread]['cut_edges'].append(cut_edges)
                 values['par'][num_thread]['time'].append(time)
+    pp.pprint(values)
     return values
 
 def make_graph(values):
@@ -73,7 +74,7 @@ def make_graph(values):
     for num_thread in num_threads:
         ax.plot(betas, values['par'][num_thread]['clusters'], label=str(num_thread) + " Thread Parallel")
     ax.set(xlabel='Beta', ylabel='Number of clusters')
-    ax.set_ylim([0,20])
+    # ax.set_ylim([0,20])
     ax.set_xscale('log')
     ax.legend(loc='best', fontsize='medium')
     plt.grid(True)
@@ -92,7 +93,7 @@ def make_graph(values):
         ax.plot(betas, values['par'][num_thread]['cut_edges'], label=str(num_thread) + " Thread Parallel")
     ax.set(xlabel='Beta', ylabel='Number of Cut Edges')
     ax.set_xscale('log')
-    ax.set_ylim([0,35])
+    # ax.set_ylim([0,35])
     ax.legend(loc='best', fontsize='medium')
     plt.grid(True)
     ax.get_xaxis().set_major_formatter(ScalarFormatter())

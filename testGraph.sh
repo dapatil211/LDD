@@ -21,3 +21,4 @@ do
 ./LDD -p $NUMTHREAD -e $BETA -s $GRAPH > $OUT"_par_"$NUMTHREAD"_"$BETA
 done
 done
+echo DONE >&2
